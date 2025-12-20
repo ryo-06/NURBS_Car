@@ -1,0 +1,11 @@
+streamlit
+numpy
+pandas
+matplotlib
+scipy
+scikit-learn
+Pillow
+opencv-python
+geomdl
+gspread
+google-auth

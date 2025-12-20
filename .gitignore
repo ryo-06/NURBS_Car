@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Secrets
+credentials.json
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db
+
