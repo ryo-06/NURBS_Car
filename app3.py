@@ -1,3 +1,4 @@
+#test
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,8 +16,9 @@ import json
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 # Streamlit Secrets から credentials_json を取得
-credentials_info = json.loads(st.secrets["credentials_json"])
-
+credentials_info = dict(st.secrets["credentials_json"])
+if "private_key" in credentials_info:
+    credentials_info["private_key"] = credentials_info["private_key"].replace("\\n", "\n")
 creds = Credentials.from_service_account_info(credentials_info, scopes=scope)
 client = gspread.authorize(creds)
 
