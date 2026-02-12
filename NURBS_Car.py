@@ -108,9 +108,8 @@ with col_info2:
 with col_info3:
     age_group = st.selectbox("年代", ["10代未満(Under 10s)", "10代(10s)", "20代(20s)", "30代(30s)", "40代(40s)", "50代(50s)", "60代(60s)", "70代以上(70s and older)"])
 
-st.markdown("### これから作る自動車の印象を決めてください(What are your impression of this car?)")
+st.markdown("### これから作る自動車の印象を決めてください(Please Decide the impression of the car you are going to make.)")
 adjective = st.selectbox(
-    "これから作る車を一言で表すと？(How would you describe the car you are about to make?)",
     ["かわいい(cute)", "かっこいい(cool)", "頑丈そう(sturdy)", "速そう(fast)", "高級な(luxury)", "親しみのある(familiar)"]
 )
 
