@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 
-# === Google Sheets 認証設定 ===
+# Google Sheets 認証設定
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -31,7 +31,6 @@ except Exception as e:
 st.set_page_config(page_title="NURBS Car Editor", layout="wide")
 st.title(" NURBS Car Silhouette Editor ")
 
-# === ここから説明文の修正箇所 ===
 st.markdown("""
 本アンケートは、**早稲田大学の研究プロジェクト**の一環として実施しているものです。  
 「**言葉によるエンジニアリング**」というテーマのもと、**言葉から理想的な自動車の形状を導出すること**を目的としています。  
@@ -81,7 +80,6 @@ Implemented by: Ryota Ozaki, Arakawa Laboratory, Graduate School of Information,
 9. You can answer as many times as you like.
 ---
 """)
-# === ここまで説明文の修正箇所 ===
 
 # 自動翻訳を無効化
 st.markdown(
@@ -97,7 +95,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ユーザー入力欄 ---
+# ユーザー入力欄 
 st.markdown("### 回答者情報(Respondent Information)")
 
 col_info1, col_info2, col_info3 = st.columns(3)
@@ -117,14 +115,13 @@ adjective = st.selectbox(
 st.markdown("---")
 
 # 車種データ
-# セダンとクーペの全長を短縮修正
+# 重みを全体的に1/10にスケーリングして丸め（曲線の形状は数学的に変化しません）
 CAR_MODELS = {
     "軽自動車(Light Vehicle)": {
         "ctrlpts": [[-0.5, 0], [-0.5, 2.0], [-0.2, 2.65], [1.5, 3.0],
                     [2.8, 5.0], [6.5, 5.1], [9.2, 5.1],
                     [9.8, 4.5], [10.1, 1.58], [10.0, 0]],
-        "weights": [1.0, 2.0, 9.2, 27.9, 66.0, 7.0,
-                    12.5, 9.2, 1.0, 1.0],
+        "weights": [0.1, 0.2, 0.9, 2.8, 6.6, 0.7, 1.3, 0.9, 0.1, 0.1],
         "tire_coords": [(0.85, 0.1), (8.5, 0.1)],
         "tire_radius": 0.85,
         "ground_line": [-0.5, 10.0, 0.0],
@@ -135,7 +132,7 @@ CAR_MODELS = {
         "ctrlpts": [[-0.8, -0.2], [-0.9, 2.3], [0.7, 3.5], [2.1, 3.7],
                     [4.2, 5.0], [7.3, 5.3], [11.3, 4.8], [10.8, 4.2],
                     [11.6, 2.2], [11.7, -0.2]],
-        "weights": [1.0, 6.0, 3.0, 5.0, 5.0, 6.0, 5.0, 3.0, 2.0, 1.0],
+        "weights": [0.1, 0.6, 0.3, 0.5, 0.5, 0.6, 0.5, 0.3, 0.2, 0.1],
         "tire_coords": [(1.3, 0.0), (10.0, 0.0)],
         "tire_radius": 1.05,
         "ground_line": [-0.8, 11.7, -0.2],
@@ -146,8 +143,7 @@ CAR_MODELS = {
         "ctrlpts": [[-0.3, -0.5], [-0.4, 2.4], [1.0, 3.0], [3.6, 3.4],
                     [5.7, 5.3], [9.1, 5.6], [12.6, 5.0], [12.2, 4.2],
                     [13.2, 3.0], [13.2, 0.3], [12.8, -0.5]],
-        "weights": [1.0, 5.0, 1.8, 4.4, 10.0, 6.0, 41.7,
-                    27.8, 28.8, 28.8, 10.0],
+        "weights": [0.1, 0.5, 0.2, 0.4, 1.0, 0.6, 4.2, 2.8, 2.9, 2.9, 1.0],
         "tire_coords": [(2.0, 0.0), (10.5, 0.0)],
         "tire_radius": 1.25,
         "ground_line": [-0.3, 12.8, -0.4],
@@ -158,8 +154,7 @@ CAR_MODELS = {
         "ctrlpts": [[-0.5, 0.6], [-0.3, 2.1], [1.5, 2.8], [3.0, 3.2],
                     [5.0, 4.6], [9.0, 4.6], [11.6, 3.5], [13.0, 3.2],
                     [13.0, 2.2], [13.2, 1.6], [13.0, 0.6]],
-        "weights": [1.0, 14.6, 20.2, 91.8, 100.0, 100.0,
-                    100.0, 100.0, 14.3, 15.0, 1.0],
+        "weights": [0.1, 1.5, 2.0, 9.2, 10.0, 10.0, 10.0, 10.0, 1.4, 1.5, 0.1],
         "tire_coords": [(2.1, 1.0), (10.4, 1.0)],
         "tire_radius": 1.05,
         "ground_line": [-0.5, 13.0, 0.6],
@@ -170,8 +165,7 @@ CAR_MODELS = {
         "ctrlpts": [[-0.8, 0.1], [-0.8, 2.8], [0.4, 3.7], [1.8, 3.9],
                     [4.6, 6.0], [8.1, 6.3], [12.6, 6.2], [12.3, 5.4],
                     [12.8, 3.2], [12.7, 0.1]],
-        "weights": [1.0, 9.1, 15.1, 30.2, 52.9, 15.1,
-                    56.2, 17.8, 12.0, 1.0],
+        "weights": [0.1, 0.9, 1.5, 3.0, 5.3, 1.5, 5.6, 1.8, 1.2, 0.1],
         "tire_coords": [(1.9, 0.2), (10.4, 0.2)],
         "tire_radius": 1.1,
         "ground_line": [-0.8, 12.7, 0.1],
@@ -182,8 +176,7 @@ CAR_MODELS = {
         "ctrlpts": [[0, 0.8], [0.1, 2.25], [1.0, 2.9], [4.0, 3.4],
                     [5.8, 4.2], [7.6, 4.3], [9.1, 3.9],
                     [10.7, 3.7], [11.8, 3.2], [12.3, 2.0], [12.0, 0.8]],
-        "weights": [1.0, 9.1, 15.1, 30.2, 52.9, 30.0,
-                    56.2, 20.0, 17.8, 11.8, 1.0],
+        "weights": [0.1, 0.9, 1.5, 3.0, 5.3, 3.0, 5.6, 2.0, 1.8, 1.2, 0.1],
         "tire_coords": [(2.2, 1.0), (10.1, 1.0)],
         "tire_radius": 1.15,
         "ground_line": [0, 12.0, 0.8],
@@ -276,7 +269,8 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
         st.session_state[w_key] = float(w)
 
     st.sidebar.markdown(f"**Point {i}**")
-    ww = st.sidebar.slider(f"重み(weight) {i}", 0.1, 150.0, st.session_state[w_key], 0.1, key=w_key, on_change=save_state_to_history)
+    # 上限値を30.0に変更
+    ww = st.sidebar.slider(f"重み(weight) {i}", 0.1, 30.0, st.session_state[w_key], 0.1, key=w_key, on_change=save_state_to_history)
     
     # === スライダーの可動域を調整 (X: ±3.0, Y: ±1.5) ===
     x = st.sidebar.slider(f"位置(point)X {i} ", float(pt[0]-3.0), float(pt[0]+3.0), st.session_state[x_key], 0.1, key=x_key, on_change=save_state_to_history)
