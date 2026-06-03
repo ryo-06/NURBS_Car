@@ -269,8 +269,7 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
         st.session_state[w_key] = float(w)
 
     st.sidebar.markdown(f"**Point {i}**")
-    # 上限値を30.0に変更
-    ww = st.sidebar.slider(f"重み(weight) {i}", 0.1, 30.0, st.session_state[w_key], 0.1, key=w_key, on_change=save_state_to_history)
+    ww = st.sidebar.slider(f"重み(weight) {i}", 0.1, 15.0, st.session_state[w_key], 0.1, key=w_key, on_change=save_state_to_history)
     
     # === スライダーの可動域を調整 (X: ±3.0, Y: ±1.5) ===
     x = st.sidebar.slider(f"位置(point)X {i} ", float(pt[0]-3.0), float(pt[0]+3.0), st.session_state[x_key], 0.1, key=x_key, on_change=save_state_to_history)
