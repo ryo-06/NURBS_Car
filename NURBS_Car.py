@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Circle
 from geomdl import NURBS, knotvector
-import matplotlib.image as mpimg
 import json
 from datetime import datetime, timedelta
 import gspread
@@ -38,8 +37,8 @@ st.markdown("""
 本研究以外の目的で個人情報を使用することはありません。
 本研究の内容にご理解・ご同意いただける方のみ、ご回答をお願いいたします。
 
-実施者：早稲田大学 情報生産システム研究科 荒川研究室 尾﨑椋太  
-
+実施者：早稲田大学 情報生産システム研究科 荒川研究室 尾﨑椋太 
+            
 This survey is being conducted as part of a research project at Waseda University.
 Under the theme of "Engineering starts with words," the project aims to derive the ideal car shape from words.
 In this survey, we will analyze the relationship between words and shapes based on the participants' actions.
@@ -67,17 +66,6 @@ Implemented by: Ryota Ozaki, Arakawa Laboratory, Graduate School of Information,
 8. **複数の車種を回答する場合**は、1つの車種が終わったら 「保存」ボタンを押し、ページを更新してください。  
 9. 回答は何度でも行うことができます。
 
-## Instructions
-1. First, enter the **Respondent Information** at the top and select the **impression word** for the car you are about to create.
-2. **Select a vehicle model** from the left sidebar.
-3. The order of the points starts from the bottom left, beginning with 0.            
-4. If you want to make the car's tip rounded or pointed, adjust the **Weight**.
-5. You can move points left and right using the **Point X** sliders and up and down using the **Point Y** sliders.
-   **(Note: The height (Y) of the start and end points is fixed.)**
-6. Basically, adjust the **Weight** of the points to your liking and fine-tune the position as needed to achieve a natural shape.
-7. After adjustments, use the **Transparency slider** to make the car body black and check the silhouette.
-8. If you are **answering multiple vehicle models**, after finishing one vehicle model, press the "Save" button and refresh the page.
-9. You can answer as many times as you like.
 ---
 """)
 
@@ -114,74 +102,55 @@ adjective = st.selectbox(
 
 st.markdown("---")
 
-# 車種データ
-# 重みを全体的に1/10にスケーリングして丸め（曲線の形状は数学的に変化しません）
+# 車種データ (画像読み込みを廃止し、背景シルエット用の座標配列を追加)
 CAR_MODELS = {
     "軽自動車(Light Vehicle)": {
-        "ctrlpts": [[-0.5, 0], [-0.5, 2.0], [-0.2, 2.65], [1.5, 3.0],
-                    [2.8, 5.0], [6.5, 5.1], [9.2, 5.1],
-                    [9.8, 4.5], [10.1, 1.58], [10.0, 0]],
+        "ctrlpts": [[-0.5, 0], [-0.5, 2.0], [-0.2, 2.65], [1.5, 3.0], [2.8, 5.0], [6.5, 5.1], [9.2, 5.1], [9.8, 4.5], [10.1, 1.58], [10.0, 0]],
         "weights": [0.1, 0.2, 0.9, 2.8, 6.6, 0.7, 1.3, 0.9, 0.1, 0.1],
+        "bg_silhouette": [[-0.5, 0], [-0.5, 1.8], [0.0, 2.8], [1.5, 3.8], [2.5, 4.9], [7.0, 5.0], [9.5, 4.8], [10.0, 2.0], [10.0, 0]],
         "tire_coords": [(0.85, 0.1), (8.5, 0.1)],
         "tire_radius": 0.85,
         "ground_line": [-0.5, 10.0, 0.0],
-        "bg_image": "Kei_car.jpg",
-        "image_extent": [-1, 11, -1.5, 6]
     },
     "コンパクトカー(Compact car)": {
-        "ctrlpts": [[-0.8, -0.2], [-0.9, 2.3], [0.7, 3.5], [2.1, 3.7],
-                    [4.2, 5.0], [7.3, 5.3], [11.3, 4.8], [10.8, 4.2],
-                    [11.6, 2.2], [11.7, -0.2]],
+        "ctrlpts": [[-0.8, -0.2], [-0.9, 2.3], [0.7, 3.5], [2.1, 3.7], [4.2, 5.0], [7.3, 5.3], [11.3, 4.8], [10.8, 4.2], [11.6, 2.2], [11.7, -0.2]],
         "weights": [0.1, 0.6, 0.3, 0.5, 0.5, 0.6, 0.5, 0.3, 0.2, 0.1],
+        "bg_silhouette": [[-0.8, -0.2], [-0.8, 1.5], [0.5, 3.0], [3.5, 4.8], [7.0, 5.1], [10.5, 4.5], [11.5, 2.5], [11.5, -0.2]],
         "tire_coords": [(1.3, 0.0), (10.0, 0.0)],
         "tire_radius": 1.05,
         "ground_line": [-0.8, 11.7, -0.2],
-        "bg_image": "compact_car.jpg",
-        "image_extent": [-1.2, 12.5, -1.5, 6.5]
     },
     "SUV": {
-        "ctrlpts": [[-0.3, -0.5], [-0.4, 2.4], [1.0, 3.0], [3.6, 3.4],
-                    [5.7, 5.3], [9.1, 5.6], [12.6, 5.0], [12.2, 4.2],
-                    [13.2, 3.0], [13.2, 0.3], [12.8, -0.5]],
+        "ctrlpts": [[-0.3, -0.5], [-0.4, 2.4], [1.0, 3.0], [3.6, 3.4], [5.7, 5.3], [9.1, 5.6], [12.6, 5.0], [12.2, 4.2], [13.2, 3.0], [13.2, 0.3], [12.8, -0.5]],
         "weights": [0.1, 0.5, 0.2, 0.4, 1.0, 0.6, 4.2, 2.8, 2.9, 2.9, 1.0],
+        "bg_silhouette": [[-0.3, -0.5], [-0.3, 2.0], [1.5, 3.2], [4.5, 5.0], [9.0, 5.4], [12.5, 4.5], [13.0, 2.5], [13.0, -0.5]],
         "tire_coords": [(2.0, 0.0), (10.5, 0.0)],
         "tire_radius": 1.25,
         "ground_line": [-0.3, 12.8, -0.4],
-        "bg_image": "SUV.jpg",
-        "image_extent": [-1.5, 14.5, -1.5, 7.5]
     },
     "セダン(Sedan)": {
-        "ctrlpts": [[-0.5, 0.6], [-0.3, 2.1], [1.5, 2.8], [3.0, 3.2],
-                    [5.0, 4.6], [9.0, 4.6], [11.6, 3.5], [13.0, 3.2],
-                    [13.0, 2.2], [13.2, 1.6], [13.0, 0.6]],
+        "ctrlpts": [[-0.5, 0.6], [-0.3, 2.1], [1.5, 2.8], [3.0, 3.2], [5.0, 4.6], [9.0, 4.6], [11.6, 3.5], [13.0, 3.2], [13.0, 2.2], [13.2, 1.6], [13.0, 0.6]],
         "weights": [0.1, 1.5, 2.0, 9.2, 10.0, 10.0, 10.0, 10.0, 1.4, 1.5, 0.1],
+        "bg_silhouette": [[-0.5, 0.6], [-0.5, 2.0], [2.0, 2.8], [5.0, 4.5], [8.5, 4.5], [11.5, 3.2], [13.0, 2.8], [13.0, 0.6]],
         "tire_coords": [(2.1, 1.0), (10.4, 1.0)],
         "tire_radius": 1.05,
         "ground_line": [-0.5, 13.0, 0.6],
-        "bg_image": "sedan2.jpg",
-        "image_extent": [-2.0, 14.5, -1.5, 6.5]
     },
     "ミニバン(Minivan)": {
-        "ctrlpts": [[-0.8, 0.1], [-0.8, 2.8], [0.4, 3.7], [1.8, 3.9],
-                    [4.6, 6.0], [8.1, 6.3], [12.6, 6.2], [12.3, 5.4],
-                    [12.8, 3.2], [12.7, 0.1]],
+        "ctrlpts": [[-0.8, 0.1], [-0.8, 2.8], [0.4, 3.7], [1.8, 3.9], [4.6, 6.0], [8.1, 6.3], [12.6, 6.2], [12.3, 5.4], [12.8, 3.2], [12.7, 0.1]],
         "weights": [0.1, 0.9, 1.5, 3.0, 5.3, 1.5, 5.6, 1.8, 1.2, 0.1],
+        "bg_silhouette": [[-0.8, 0.1], [-0.8, 2.5], [1.0, 4.0], [4.0, 5.8], [9.5, 6.0], [12.5, 5.0], [12.5, 0.1]],
         "tire_coords": [(1.9, 0.2), (10.4, 0.2)],
         "tire_radius": 1.1,
         "ground_line": [-0.8, 12.7, 0.1],
-        "bg_image": "Minivan.jpg",
-        "image_extent": [-1.5, 14.0, -1.5, 7.5]
     },
     "クーペ(coupe)": {
-        "ctrlpts": [[0, 0.8], [0.1, 2.25], [1.0, 2.9], [4.0, 3.4],
-                    [5.8, 4.2], [7.6, 4.3], [9.1, 3.9],
-                    [10.7, 3.7], [11.8, 3.2], [12.3, 2.0], [12.0, 0.8]],
+        "ctrlpts": [[0, 0.8], [0.1, 2.25], [1.0, 2.9], [4.0, 3.4], [5.8, 4.2], [7.6, 4.3], [9.1, 3.9], [10.7, 3.7], [11.8, 3.2], [12.3, 2.0], [12.0, 0.8]],
         "weights": [0.1, 0.9, 1.5, 3.0, 5.3, 3.0, 5.6, 2.0, 1.8, 1.2, 0.1],
+        "bg_silhouette": [[0, 0.8], [0.0, 1.8], [2.0, 2.8], [5.0, 4.0], [8.0, 4.0], [11.0, 3.2], [12.0, 2.0], [12.0, 0.8]],
         "tire_coords": [(2.2, 1.0), (10.1, 1.0)],
         "tire_radius": 1.15,
         "ground_line": [0, 12.0, 0.8],
-        "bg_image": "coope.jpg",
-        "image_extent": [-1.5, 13.5, -1.5, 6.0]
     }
 }
 
@@ -271,7 +240,7 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     st.sidebar.markdown(f"**Point {i}**")
     ww = st.sidebar.slider(f"重み(weight) {i}", 0.1, 15.0, st.session_state[w_key], 0.1, key=w_key, on_change=save_state_to_history)
     
-    # === スライダーの可動域を調整 (X: ±3.0, Y: ±1.5) ===
+    # スライダーの可動域を調整 (X: ±3.0, Y: ±1.5)
     x = st.sidebar.slider(f"位置(point)X {i} ", float(pt[0]-3.0), float(pt[0]+3.0), st.session_state[x_key], 0.1, key=x_key, on_change=save_state_to_history)
     
     if i == 0 or i == num_points - 1:
@@ -296,24 +265,23 @@ curve.evaluate()
 
 # 描画
 fig, ax = plt.subplots(figsize=(10, 7))
-try:
-    bg = mpimg.imread(model_data.get("bg_image", ""))
-    # extentは使いますが、座標軸自体は固定します
-    ext = model_data.get("image_extent", [-1, 11, -1.5, 6])
-    ax.imshow(bg, extent=ext, aspect='auto', alpha=0.2)
-except Exception:
-    pass
+
+# === 背景のガイドライン（シルエット）をプログラムで直接描画 ===
+if "bg_silhouette" in model_data:
+    bg_pts = np.array(model_data["bg_silhouette"])
+    # 破線などでガイドっぽく描画する
+    ax.plot(bg_pts[:, 0], bg_pts[:, 1], color='gray', linestyle='--', linewidth=3, alpha=0.5, label="Guideline")
 
 # タイヤ描画
 tire_radius = model_data.get("tire_radius", 0.9)
 for t in model_data.get("tire_coords", []):
-    ax.add_patch(Circle((t[0], t[1]), tire_radius, color='black', zorder=1))
+    ax.add_patch(Circle((t[0], t[1]), tire_radius, color='darkgray', zorder=1, alpha=0.5))
 
 if "ground_line" in model_data:
     current_start_x = new_ctrlpts[0][0]
     current_end_x = new_ctrlpts[-1][0]
     y_ground = fixed_ground_y
-    ax.plot([current_start_x, current_end_x], [y_ground, y_ground], '-', color='black', linewidth=1)
+    ax.plot([-3, 15], [y_ground, y_ground], '-', color='black', linewidth=1)
 
 curve_pts = np.array(curve.evalpts)
 ax.plot(curve_pts[:, 0], curve_pts[:, 1], color='blue', linewidth=2)
@@ -327,12 +295,11 @@ for i in range(len(ctrl_np)):
 poly_pts = curve.evalpts + [new_ctrlpts[-1], new_ctrlpts[0]]
 ax.add_patch(Polygon(poly_pts, closed=True, color='black', alpha=st.session_state.alpha))
 
-# === ここで全車種統一のスケール（表示範囲）を設定 ===
-# すべての車が入る一番大きなサイズに固定します
+# 全車種統一のスケール（表示範囲）を設定
 ax.set_xlim(-3, 15)
 ax.set_ylim(-3, 8)
 ax.set_aspect('equal')
-ax.grid(True)
+ax.grid(True, linestyle=':', alpha=0.7)
 
 st.pyplot(fig)
 
