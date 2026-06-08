@@ -157,7 +157,7 @@ CAR_MODELS = {
         "tire_coords": [(2.1, 1.0), (10.4, 1.0)],
         "tire_radius": 1.05,
         "ground_line": [-0.5, 13.0, 0.6],
-        "bg_image": "sedan2.jpg",
+        "bg_image": "sedan.jpg",
         "image_extent": [-2.0, 14.5, -1.5, 6.5]
     },
     "ミニバン(Minivan)": {
