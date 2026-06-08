@@ -179,7 +179,7 @@ CAR_MODELS = {
         "tire_coords": [(2.2, 1.0), (10.1, 1.0)],
         "tire_radius": 1.15,
         "ground_line": [0, 12.0, 0.8],
-        "bg_image": "coupe.jpg",
+        "bg_image": "coope.jpg",
         "image_extent": [-1.5, 13.5, -1.5, 6.0]
     }
 }
