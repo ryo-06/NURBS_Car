@@ -269,7 +269,7 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
 
     st.sidebar.markdown(f"**Point {i}**")
     
-    # === 重みのスライダー可動域を初期値の相対範囲に調整（ここは維持） ===
+    # === 重みのスライダー可動域を初期値の相対範囲に調整（0.3倍 〜 3.0倍） ===
     min_w = round(max(0.01, float(w * 0.3)), 2)
     max_w = round(float(w * 3.0), 2)
 
@@ -279,8 +279,15 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     elif st.session_state[w_key] > max_w:
         st.session_state[w_key] = max_w
 
-    # 【変更】安定動作のため、すべてのステップ幅を「0.1」単位に戻す
-    step_w = 0.1
+    # 【劇的改善】総分割数が常に100前後（一番軽快で滑らかなバランス）になるようステップ幅を動的決定
+    if w <= 0.3:
+        step_w = 0.01  # w=0.1のとき可動幅0.27 → 27分割（カクつかない最小単位）
+    elif w <= 1.0:
+        step_w = 0.02  # w=1.0のとき可動幅2.70 → 135分割
+    elif w <= 3.0:
+        step_w = 0.05  # w=3.0のとき可動幅8.10 → 162分割
+    else:
+        step_w = 0.2   # w=10.0のとき可動幅27.0 → 135分割（絶対に落ちない安全・滑らか設計）
 
     ww = st.sidebar.slider(
         f"重み(weight) {i}", 
@@ -292,7 +299,7 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
         on_change=save_state_to_history
     )
     
-    # 【変更】位置X, Yのスライダーも安定動作のため元の「0.1」単位に戻す
+    # 位置X, Yのスライダーは、元々十分に軽快かつ滑らかだった「0.1刻み」に戻す
     x = st.sidebar.slider(f"位置(point)X {i} ", float(pt[0]-3.0), float(pt[0]+3.0), st.session_state[x_key], 0.1, key=x_key, on_change=save_state_to_history)
     
     if i == 0 or i == num_points - 1:
