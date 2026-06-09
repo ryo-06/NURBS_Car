@@ -109,7 +109,7 @@ with col_info3:
 st.markdown("### これから作る自動車の印象を決めてください(Please Decide the impression of the car you are going to make.)")
 adjective = st.selectbox(
     "車を一言で表すと？(How would you describe the car in one word?)",
-    ["かわいい(cute)", "かっこいい(cool)", "頑丈そう(sturdy)", "速そう(fast)", "高級な(luxury)", "親しみのある(familiar)"]
+    ["かわいい(cute)", "かっこいい(cool)", "頑丈な(sturdy)", "速い(fast)", "高級な(luxury)", "親しみのある(familiar)"]
 )
 
 st.markdown("---")
