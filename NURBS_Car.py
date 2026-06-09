@@ -116,7 +116,7 @@ st.markdown("---")
 
 # 車種データ
 CAR_MODELS = {
-    "軽自動車(Light Vehicle)": {
+    "軽自動車(Kei_car)": {
         "ctrlpts": [[-0.5, 0], [-0.5, 2.0], [-0.2, 2.65], [1.5, 3.0],
                     [2.8, 5.0], [6.5, 5.1], [9.2, 5.1],
                     [9.8, 4.5], [10.1, 1.58], [10.0, 0]],
@@ -171,7 +171,7 @@ CAR_MODELS = {
         "bg_image": "Minivan.jpg",
         "image_extent": [-1.5, 14.0, -1.5, 7.5]
     },
-    "クーペ(coupe)": {
+    "クーペ(Coupe)": {
         "ctrlpts": [[0, 0.8], [0.1, 2.25], [1.0, 2.9], [4.0, 3.4],
                     [5.8, 4.2], [7.6, 4.3], [9.1, 3.9],
                     [10.7, 3.7], [11.8, 3.2], [12.3, 2.0]],
@@ -268,7 +268,30 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
         st.session_state[w_key] = float(w)
 
     st.sidebar.markdown(f"**Point {i}**")
-    ww = st.sidebar.slider(f"重み(weight) {i}", 0.1, 15.0, st.session_state[w_key], 0.1, key=w_key, on_change=save_state_to_history)
+    
+    # === 【改善箇所】重みのスライダー可動域を初期値の相対範囲に調整 ===
+    # 初期値を基準に「0.3倍 〜 3.0倍」の範囲に設定（下限が0以下にならないよう安全弁を設定）
+    min_w = round(max(0.01, float(w * 0.3)), 2)
+    max_w = round(float(w * 3.0), 2)
+
+    # セッション内の状態が現在のスライダー可動域から外れていた場合の自動補正
+    if st.session_state[w_key] < min_w:
+        st.session_state[w_key] = min_w
+    elif st.session_state[w_key] > max_w:
+        st.session_state[w_key] = max_w
+
+    # 重みの大きさに合わせてステップ幅を調整（1未満の小さな値はより細かく動かせるように）
+    step_w = 0.05 if w < 1.0 else 0.1
+
+    ww = st.sidebar.slider(
+        f"重み(weight) {i}", 
+        min_value=min_w, 
+        max_value=max_w, 
+        value=st.session_state[w_key], 
+        step=step_w,
+        key=w_key, 
+        on_change=save_state_to_history
+    )
     
     # === スライダーの可動域を調整 ===
     x = st.sidebar.slider(f"位置(point)X {i} ", float(pt[0]-3.0), float(pt[0]+3.0), st.session_state[x_key], 0.1, key=x_key, on_change=save_state_to_history)
