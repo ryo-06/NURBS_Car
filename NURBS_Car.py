@@ -269,8 +269,7 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
 
     st.sidebar.markdown(f"**Point {i}**")
     
-    # === 【改善箇所】重みのスライダー可動域を初期値の相対範囲に調整 ===
-    # 初期値を基準に「0.3倍 〜 3.0倍」の範囲に設定（下限が0以下にならないよう安全弁を設定）
+    # === 重みのスライダー可動域を初期値の相対範囲に調整 ===
     min_w = round(max(0.01, float(w * 0.3)), 2)
     max_w = round(float(w * 3.0), 2)
 
@@ -280,8 +279,8 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     elif st.session_state[w_key] > max_w:
         st.session_state[w_key] = max_w
 
-    # 重みの大きさに合わせてステップ幅を調整（1未満の小さな値はより細かく動かせるように）
-    step_w = 0.05 if w < 1.0 else 0.1
+    # 【改善】重みのステップを 0.01 単位にして滑らかに調整可能にする
+    step_w = 0.01
 
     ww = st.sidebar.slider(
         f"重み(weight) {i}", 
@@ -293,15 +292,15 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
         on_change=save_state_to_history
     )
     
-    # === スライダーの可動域を調整 ===
-    x = st.sidebar.slider(f"位置(point)X {i} ", float(pt[0]-3.0), float(pt[0]+3.0), st.session_state[x_key], 0.1, key=x_key, on_change=save_state_to_history)
+    # 【改善】位置X, 位置Yのステップも 0.01 単位に変更し、ミリ単位の滑らかな微調整を可能にする
+    x = st.sidebar.slider(f"位置(point)X {i} ", float(pt[0]-3.0), float(pt[0]+3.0), st.session_state[x_key], 0.01, key=x_key, on_change=save_state_to_history)
     
     if i == 0 or i == num_points - 1:
         y = fixed_ground_y
         st.sidebar.caption(f"位置(point)Y {i} : Fixed ({fixed_ground_y})")
         st.session_state[y_key] = fixed_ground_y
     else:
-        y = st.sidebar.slider(f"位置(point)Y {i} ", float(pt[1]-1.5), float(pt[1]+1.5), st.session_state[y_key], 0.1, key=y_key, on_change=save_state_to_history)
+        y = st.sidebar.slider(f"位置(point)Y {i} ", float(pt[1]-1.5), float(pt[1]+1.5), st.session_state[y_key], 0.01, key=y_key, on_change=save_state_to_history)
 
     new_ctrlpts.append([float(x), float(y)])
     new_weights.append(float(ww))
@@ -349,7 +348,6 @@ poly_pts = curve.evalpts + [new_ctrlpts[-1], new_ctrlpts[0]]
 ax.add_patch(Polygon(poly_pts, closed=True, color='black', alpha=st.session_state.alpha))
 
 # === ここで全車種統一のスケール（表示範囲）を設定 ===
-# すべての車が入る一番大きなサイズに固定します
 ax.set_xlim(-3, 15)
 ax.set_ylim(-3, 8)
 ax.set_aspect('equal')
