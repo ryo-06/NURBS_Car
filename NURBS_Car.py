@@ -374,11 +374,12 @@ st.pyplot(fig)
 
 
 # === Google Drive 画像アップロード関数 ===
+# === Google Drive 画像アップロード関数（エラー原因特定バージョン） ===
 def upload_image_to_drive(fig, filename):
     if drive_service is None:
+        st.error("Google Drive APIが初期化されていません。")
         return ""
     
-    # 画像をメモリ上に保存（ローカルにファイルを作らず高速処理）
     buf = io.BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight')
     buf.seek(0)
@@ -392,20 +393,26 @@ def upload_image_to_drive(fig, filename):
     media = MediaIoBaseUpload(buf, mimetype='image/png', resumable=True)
     
     try:
-        # Driveへアップロード
+        # Driveへアップロード（ファイル自体の保存）
         file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
         file_id = file.get('id')
         
-        # スプレッドシート上で誰でも閲覧できるように権限を「リンクを知っている全員」に変更
-        drive_service.permissions().create(
-            fileId=file_id,
-            body={'type': 'anyone', 'role': 'reader'}
-        ).execute()
+        # ▼ ここでエラーが起きる可能性が高いです ▼
+        try:
+            drive_service.permissions().create(
+                fileId=file_id,
+                body={'type': 'anyone', 'role': 'reader'}
+            ).execute()
+        except Exception as perm_e:
+            # 権限変更だけが失敗した場合は、エラーを画面に出しつつ、URLは返す
+            st.error(f"⚠️ 画像は保存されましたが、大学のセキュリティ制限により「公開設定」にできませんでした: {perm_e}")
+            return f'=IMAGE("https://drive.google.com/uc?id={file_id}")'
         
-        # スプレッドシートの IMAGE 関数用のURLを返す
         return f'=IMAGE("https://drive.google.com/uc?id={file_id}")'
+        
     except Exception as e:
-        print(f"Drive Upload Error: {e}")
+        # アップロード自体が失敗した場合はこちら
+        st.error(f"❌ 画像のアップロード自体に失敗しました: {e}")
         return ""
 
 # === Google Sheets保存 ===
