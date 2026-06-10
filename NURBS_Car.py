@@ -8,8 +8,11 @@ import json
 from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
+import io
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
-# Google Sheets 認証設定
+# Google Sheets & Drive 認証設定
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -22,10 +25,15 @@ try:
             credentials_info["private_key"] = credentials_info["private_key"].replace("\\n", "\n")
         creds = Credentials.from_service_account_info(credentials_info, scopes=scope)
         client = gspread.authorize(creds)
+        
+        # Google Drive APIのサービスを構築
+        drive_service = build('drive', 'v3', credentials=creds)
     else:
         client = None
+        drive_service = None
 except Exception as e:
     client = None
+    drive_service = None
 
 # ページ設定
 st.set_page_config(page_title="NURBS Car Editor", layout="wide")
@@ -254,7 +262,7 @@ st.session_state.alpha = st.sidebar.slider(
 # 固定Y座標 (Ground Line)
 fixed_ground_y = model_data["ground_line"][2]
 
-new_ctrlpts, new_weights = [], []
+new_ctrlpts, new_weights, weight_ratios = [], [], []
 num_points = len(initial_ctrlpts)
 
 for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
@@ -273,14 +281,11 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     min_w = round(max(0.01, float(w * 0.1)), 2)
     max_w = round(float(w * 5.0), 2)
 
-    # セッション内の状態が現在のスライダー可動域から外れていた場合の自動補正
     if st.session_state[w_key] < min_w:
         st.session_state[w_key] = min_w
     elif st.session_state[w_key] > max_w:
         st.session_state[w_key] = max_w
 
-    # 【ステップ幅の再調整】
-    # Streamlitが落ちないよう、最大範囲（50倍の開き）に合わせて分割数を100〜250前後に最適化
     if w <= 0.3:
         step_w = 0.01  
     elif w <= 1.0:
@@ -312,12 +317,8 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     new_ctrlpts.append([float(x), float(y)])
     new_weights.append(float(ww))
     
-    # 操作後の重み(ww)を初期値(w)で割り、倍率を計算（小数点第2位で丸める）
+    # 倍率を計算してリストに追加
     ratio = round(float(ww) / float(w), 2)
-    
-    # 倍率保存用のリストがなければ作成して追加
-    if "weight_ratios" not in locals():
-        weight_ratios = []
     weight_ratios.append(ratio)
     
     st.sidebar.markdown("---")
@@ -371,17 +372,52 @@ ax.grid(True)
 
 st.pyplot(fig)
 
+
+# === Google Drive 画像アップロード関数 ===
+def upload_image_to_drive(fig, filename):
+    if drive_service is None:
+        return ""
+    
+    # 画像をメモリ上に保存（ローカルにファイルを作らず高速処理）
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+    
+    FOLDER_ID = "1Tbigk3-JUd_QxIMqjEALO8LvWrHgognk?usp=drive_link"
+    
+    file_metadata = {
+        'name': filename,
+        'parents': [FOLDER_ID]
+    }
+    media = MediaIoBaseUpload(buf, mimetype='image/png', resumable=True)
+    
+    try:
+        # Driveへアップロード
+        file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        file_id = file.get('id')
+        
+        # スプレッドシート上で誰でも閲覧できるように権限を「リンクを知っている全員」に変更
+        drive_service.permissions().create(
+            fileId=file_id,
+            body={'type': 'anyone', 'role': 'reader'}
+        ).execute()
+        
+        # スプレッドシートの IMAGE 関数用のURLを返す
+        return f'=IMAGE("https://drive.google.com/uc?id={file_id}")'
+    except Exception as e:
+        print(f"Drive Upload Error: {e}")
+        return ""
+
 # === Google Sheets保存 ===
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1-mgxO9tqejwKehnbLS5B2JhCocdHH_xDWSZRLGKAE3A/edit?usp=sharing"
 
-def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, weight_ratios, alpha_value, adjective):
+def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, weight_ratios, alpha_value, adjective, image_formula):
     try:
         if client is None:
             raise RuntimeError("Google Sheetsへの接続設定がありません (Streamlit Secretsを確認してください)")
 
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
-        
         main_worksheet = spreadsheet.worksheet("全体")
         try:
             model_worksheet = spreadsheet.worksheet(model)
@@ -395,58 +431,35 @@ def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, w
         raw_weights_str = json.dumps(raw_weights, ensure_ascii=False)
         ratios_str = json.dumps(weight_ratios, ensure_ascii=False)
 
-        # ご希望のA列〜J列の並び順に変更
-        row = [adjective, name, gender, age_group, model, ctrlpts_str, raw_weights_str, ratios_str, alpha_value, timestamp]
+        # 順番：言葉、名前、性別、年代、車種、座標、重み数値、重み倍率、透明度、時間、画像
+        row = [adjective, name, gender, age_group, model, ctrlpts_str, raw_weights_str, ratios_str, alpha_value, timestamp, image_formula]
         row = [str(v).encode("utf-8", "ignore").decode("utf-8") for v in row]
 
-        # 印象の言葉の並び順（優先順位）を定義
-        adjectives_order = [
-            "かわいい(cute)", 
-            "かっこいい(cool)", 
-            "頑丈な(sturdy)", 
-            "速い(fast)", 
-            "高級な(luxury)", 
-            "親しみのある(familiar)"
-        ]
+        adjectives_order = ["かわいい(cute)", "かっこいい(cool)", "頑丈な(sturdy)", "速い(fast)", "高級な(luxury)", "親しみのある(familiar)"]
 
-        # グループごとに整理して行を挿入するローカル関数
         def insert_sorted(sheet, row_data, adj):
-            col_a = sheet.col_values(1) # A列（印象の言葉）のデータを全取得
-            
-            # シートにヘッダーしかない、または空の場合は2行目にそのまま追加
+            col_a = sheet.col_values(1)
             if len(col_a) <= 1:
                 sheet.insert_row(row_data, index=2, value_input_option="USER_ENTERED")
                 return
-
-            # 今回追加する言葉の優先度番号を取得
             new_pri = adjectives_order.index(adj) if adj in adjectives_order else 999
-            
-            insert_idx = 2 # デフォルトの挿入位置（2行目）
-            
-            # シートの下の行から上に向かって検索
+            insert_idx = 2 
             for i in range(len(col_a) - 1, 0, -1):
                 val = col_a[i]
                 existing_pri = adjectives_order.index(val) if val in adjectives_order else -1
-                
-                # 同じ言葉、または自分より優先度が高い（上にあるべき）言葉を見つけたら
                 if existing_pri <= new_pri and existing_pri != -1:
-                    # その言葉の「次の行」を挿入位置に決定してループを抜ける
                     insert_idx = i + 2 
                     break
-            
-            # 決定した行にデータを挿入（それ以下の行は自動で1段ずつ下へずれる）
             sheet.insert_row(row_data, index=insert_idx, value_input_option="USER_ENTERED")
 
-        # 「全体」シートへの書き込み
         insert_sorted(main_worksheet, row, adjective)
-        
-        # 「各車種」シートへの書き込み
         if model_worksheet:
             insert_sorted(model_worksheet, row, adjective)
             
         return True, None
     except Exception as e:
         return False, str(e)
+
 
 # === 送信用の状態管理（メッセージ保持用） ===
 if "save_msg" not in st.session_state:
@@ -457,25 +470,35 @@ if st.button("保存する(save)"):
     if not name.strip():
         st.session_state.save_msg = {"type": "error", "text": "⚠️ 記入事項に回答してください。(please answer the questions)"}
     else:
-        ok, err = save_to_google_sheet(
-            name,
-            gender,
-            age_group,
-            selected_model,
-            new_ctrlpts,
-            new_weights,   
-            weight_ratios, 
-            1.0,  # スプレッドシートには強制的に1.0で保存
-            adjective
-        )
-        if ok:
-            # ★画面の透明度スライダーの値も強制的に1.0に書き換える★
-            st.session_state.alpha = 1.0 
-            st.session_state.save_msg = {"type": "success", "text": "✅ 保存しました！(saved)"}
-        else:
-            st.session_state.save_msg = {"type": "error_with_expander", "text": "❌ 保存に失敗しました。(save failed)", "err_detail": str(err)}
+        with st.spinner("画像を生成し、データを保存中です... (Saving data...)"):
+            # ドライブアップロード用に、一時的にポリゴンの透明度を1.0(黒)に変更して画像を生成
+            for patch in ax.patches:
+                if isinstance(patch, Polygon):
+                    patch.set_alpha(1.0)
+            
+            jst_now = datetime.utcnow() + timedelta(hours=9)
+            filename = f"{selected_model}_{name}_{jst_now.strftime('%Y%m%d%H%M%S')}.png"
+            image_formula = upload_image_to_drive(fig, filename)
+
+            ok, err = save_to_google_sheet(
+                name,
+                gender,
+                age_group,
+                selected_model,
+                new_ctrlpts,
+                new_weights,   
+                weight_ratios, 
+                1.0, 
+                adjective,
+                image_formula
+            )
+            
+            if ok:
+                st.session_state.alpha = 1.0 
+                st.session_state.save_msg = {"type": "success", "text": "✅ 保存しました！(saved)"}
+            else:
+                st.session_state.save_msg = {"type": "error_with_expander", "text": "❌ 保存に失敗しました。(save failed)", "err_detail": str(err)}
     
-    # 画面を再読み込みして、車の色（透明度1.0）とメッセージを瞬時に反映させる
     st.rerun()
 
 # --- 再読み込み後にメッセージを表示 ---
@@ -490,5 +513,4 @@ if st.session_state.save_msg:
         with st.expander("エラー内容を表示"):
             st.code(msg["err_detail"], language="text")
             
-    # 一度表示したらメッセージを消去する（リロード時に消えるようにする）
     st.session_state.save_msg = None
