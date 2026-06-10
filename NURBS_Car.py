@@ -269,9 +269,9 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
 
     st.sidebar.markdown(f"**Point {i}**")
     
-    # === 重みのスライダー可動域を初期値の相対範囲に調整（0.3倍 〜 3.0倍） ===
-    min_w = round(max(0.01, float(w * 0.3)), 2)
-    max_w = round(float(w * 3.0), 2)
+    # === 重みのスライダー可動域を初期値の相対範囲に調整（0.1倍 〜 5.0倍に変更） ===
+    min_w = round(max(0.01, float(w * 0.1)), 2)
+    max_w = round(float(w * 5.0), 2)
 
     # セッション内の状態が現在のスライダー可動域から外れていた場合の自動補正
     if st.session_state[w_key] < min_w:
@@ -279,14 +279,16 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     elif st.session_state[w_key] > max_w:
         st.session_state[w_key] = max_w
 
+    # 【ステップ幅の再調整】
+    # Streamlitが落ちないよう、最大範囲（50倍の開き）に合わせて分割数を100〜250前後に最適化
     if w <= 0.3:
-        step_w = 0.01  # w=0.1のとき可動幅0.27 → 27分割（カクつかない最小単位）
+        step_w = 0.01  
     elif w <= 1.0:
-        step_w = 0.02  # w=1.0のとき可動幅2.70 → 135分割
+        step_w = 0.05  
     elif w <= 3.0:
-        step_w = 0.05  # w=3.0のとき可動幅8.10 → 162分割
+        step_w = 0.1   
     else:
-        step_w = 0.2   # w=10.0のとき可動幅27.0 → 135分割（絶対に落ちない安全・滑らか設計）
+        step_w = 0.2   
 
     ww = st.sidebar.slider(
         f"重み(weight) {i}", 
@@ -310,7 +312,7 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     new_ctrlpts.append([float(x), float(y)])
     new_weights.append(float(ww))
     
-    # ここを追加：操作後の重み(ww)を初期値(w)で割り、倍率を計算（小数点第2位で丸める）
+    # 操作後の重み(ww)を初期値(w)で割り、倍率を計算（小数点第2位で丸める）
     ratio = round(float(ww) / float(w), 2)
     
     # 倍率保存用のリストがなければ作成して追加
