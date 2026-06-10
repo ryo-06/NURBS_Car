@@ -448,10 +448,14 @@ def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, w
     except Exception as e:
         return False, str(e)
 
+# === 送信用の状態管理（メッセージ保持用） ===
+if "save_msg" not in st.session_state:
+    st.session_state.save_msg = None
+
 # === 送信ボタン ===
 if st.button("保存する(save)"):
     if not name.strip():
-        st.error("⚠️ 記入事項に回答してください。(please answer the questions)")
+        st.session_state.save_msg = {"type": "error", "text": "⚠️ 記入事項に回答してください。(please answer the questions)"}
     else:
         ok, err = save_to_google_sheet(
             name,
@@ -461,12 +465,30 @@ if st.button("保存する(save)"):
             new_ctrlpts,
             new_weights,   
             weight_ratios, 
-            st.session_state.alpha,
+            1.0,  # スプレッドシートには強制的に1.0で保存
             adjective
         )
         if ok:
-            st.success("✅ 保存しました！(saved)")
+            # ★画面の透明度スライダーの値も強制的に1.0に書き換える★
+            st.session_state.alpha = 1.0 
+            st.session_state.save_msg = {"type": "success", "text": "✅ 保存しました！(saved)"}
         else:
-            st.error("❌ 保存に失敗しました。(save failed)")
-            with st.expander("エラー内容を表示"):
-                st.code(err, language="text")
+            st.session_state.save_msg = {"type": "error_with_expander", "text": "❌ 保存に失敗しました。(save failed)", "err_detail": str(err)}
+    
+    # 画面を再読み込みして、車の色（透明度1.0）とメッセージを瞬時に反映させる
+    st.rerun()
+
+# --- 再読み込み後にメッセージを表示 ---
+if st.session_state.save_msg:
+    msg = st.session_state.save_msg
+    if msg["type"] == "success":
+        st.success(msg["text"])
+    elif msg["type"] == "error":
+        st.error(msg["text"])
+    elif msg["type"] == "error_with_expander":
+        st.error(msg["text"])
+        with st.expander("エラー内容を表示"):
+            st.code(msg["err_detail"], language="text")
+            
+    # 一度表示したらメッセージを消去する（リロード時に消えるようにする）
+    st.session_state.save_msg = None
