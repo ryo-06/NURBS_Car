@@ -279,7 +279,6 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     elif st.session_state[w_key] > max_w:
         st.session_state[w_key] = max_w
 
-    # 【劇的改善】総分割数が常に100前後（一番軽快で滑らかなバランス）になるようステップ幅を動的決定
     if w <= 0.3:
         step_w = 0.01  # w=0.1のとき可動幅0.27 → 27分割（カクつかない最小単位）
     elif w <= 1.0:
@@ -299,7 +298,6 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
         on_change=save_state_to_history
     )
     
-    # 位置X, Yのスライダーは、元々十分に軽快かつ滑らかだった「0.1刻み」に戻す
     x = st.sidebar.slider(f"位置(point)X {i} ", float(pt[0]-3.0), float(pt[0]+3.0), st.session_state[x_key], 0.1, key=x_key, on_change=save_state_to_history)
     
     if i == 0 or i == num_points - 1:
@@ -311,6 +309,15 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
 
     new_ctrlpts.append([float(x), float(y)])
     new_weights.append(float(ww))
+    
+    # ここを追加：操作後の重み(ww)を初期値(w)で割り、倍率を計算（小数点第2位で丸める）
+    ratio = round(float(ww) / float(w), 2)
+    
+    # 倍率保存用のリストがなければ作成して追加
+    if "weight_ratios" not in locals():
+        weight_ratios = []
+    weight_ratios.append(ratio)
+    
     st.sidebar.markdown("---")
 
 # NURBS生成
@@ -399,11 +406,10 @@ if st.button("保存する(save)"):
             age_group,
             selected_model,
             new_ctrlpts,
-            new_weights,
+            weight_ratios, # 絶対値ではなく「倍率のリスト」を渡す
             st.session_state.alpha,
             adjective
         )
-
         if ok:
             st.success("✅ 保存しました！(saved)")
         else:
