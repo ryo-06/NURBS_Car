@@ -8,14 +8,10 @@ import json
 from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
-import io
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 
-# Google Sheets & Drive 認証設定
+# Google Sheets 認証設定
 scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
+    "https://spreadsheets.google.com/feeds"
 ]
 
 try:
@@ -25,15 +21,10 @@ try:
             credentials_info["private_key"] = credentials_info["private_key"].replace("\\n", "\n")
         creds = Credentials.from_service_account_info(credentials_info, scopes=scope)
         client = gspread.authorize(creds)
-        
-        # Google Drive APIのサービスを構築
-        drive_service = build('drive', 'v3', credentials=creds)
     else:
         client = None
-        drive_service = None
 except Exception as e:
     client = None
-    drive_service = None
 
 # ページ設定
 st.set_page_config(page_title="NURBS Car Editor", layout="wide")
@@ -373,53 +364,11 @@ ax.grid(True)
 st.pyplot(fig)
 
 
-# === Google Drive 画像アップロード関数 ===
-# === Google Drive 画像アップロード関数（エラー原因特定バージョン） ===
-def upload_image_to_drive(fig, filename):
-    if drive_service is None:
-        st.error("Google Drive APIが初期化されていません。")
-        return ""
-    
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
-    
-    FOLDER_ID = "1Tbigk3-JUd_QxIMqjEALO8LvWrHgognk"
-    
-    file_metadata = {
-        'name': filename,
-        'parents': [FOLDER_ID]
-    }
-    media = MediaIoBaseUpload(buf, mimetype='image/png', resumable=True)
-    
-    try:
-        # Driveへアップロード（ファイル自体の保存）
-        file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-        file_id = file.get('id')
-        
-        # ▼ ここでエラーが起きる可能性が高いです ▼
-        try:
-            drive_service.permissions().create(
-                fileId=file_id,
-                body={'type': 'anyone', 'role': 'reader'}
-            ).execute()
-        except Exception as perm_e:
-            # 権限変更だけが失敗した場合は、エラーを画面に出しつつ、URLは返す
-            st.error(f"⚠️ 画像は保存されましたが、大学のセキュリティ制限により「公開設定」にできませんでした: {perm_e}")
-            return f'=IMAGE("https://drive.google.com/uc?id={file_id}")'
-        
-        return f'=IMAGE("https://drive.google.com/uc?id={file_id}")'
-        
-    except Exception as e:
-        # アップロード自体が失敗した場合はこちら
-        st.error(f"❌ 画像のアップロード自体に失敗しました: {e}")
-        return ""
-
 # === Google Sheets保存 ===
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1-mgxO9tqejwKehnbLS5B2JhCocdHH_xDWSZRLGKAE3A/edit?usp=sharing"
 
-def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, weight_ratios, alpha_value, adjective, image_formula):
+def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, weight_ratios, alpha_value, adjective):
     try:
         if client is None:
             raise RuntimeError("Google Sheetsへの接続設定がありません (Streamlit Secretsを確認してください)")
@@ -438,8 +387,8 @@ def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, w
         raw_weights_str = json.dumps(raw_weights, ensure_ascii=False)
         ratios_str = json.dumps(weight_ratios, ensure_ascii=False)
 
-        # 順番：言葉、名前、性別、年代、車種、座標、重み数値、重み倍率、透明度、時間、画像
-        row = [adjective, name, gender, age_group, model, ctrlpts_str, raw_weights_str, ratios_str, alpha_value, timestamp, image_formula]
+        # 順番：言葉、名前、性別、年代、車種、座標、重み数値、重み倍率、透明度、時間
+        row = [adjective, name, gender, age_group, model, ctrlpts_str, raw_weights_str, ratios_str, alpha_value, timestamp]
         row = [str(v).encode("utf-8", "ignore").decode("utf-8") for v in row]
 
         adjectives_order = ["かわいい(cute)", "かっこいい(cool)", "頑丈な(sturdy)", "速い(fast)", "高級な(luxury)", "親しみのある(familiar)"]
@@ -477,16 +426,7 @@ if st.button("保存する(save)"):
     if not name.strip():
         st.session_state.save_msg = {"type": "error", "text": "⚠️ 記入事項に回答してください。(please answer the questions)"}
     else:
-        with st.spinner("画像を生成し、データを保存中です... (Saving data...)"):
-            # ドライブアップロード用に、一時的にポリゴンの透明度を1.0(黒)に変更して画像を生成
-            for patch in ax.patches:
-                if isinstance(patch, Polygon):
-                    patch.set_alpha(1.0)
-            
-            jst_now = datetime.utcnow() + timedelta(hours=9)
-            filename = f"{selected_model}_{name}_{jst_now.strftime('%Y%m%d%H%M%S')}.png"
-            image_formula = upload_image_to_drive(fig, filename)
-
+        with st.spinner("データを保存中です... (Saving data...)"):
             ok, err = save_to_google_sheet(
                 name,
                 gender,
@@ -495,9 +435,8 @@ if st.button("保存する(save)"):
                 new_ctrlpts,
                 new_weights,   
                 weight_ratios, 
-                1.0, 
-                adjective,
-                image_formula
+                1.0, # 透明度は1.0で強制保存
+                adjective
             )
             
             if ok:
