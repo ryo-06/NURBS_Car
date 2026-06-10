@@ -375,24 +375,75 @@ st.pyplot(fig)
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1-mgxO9tqejwKehnbLS5B2JhCocdHH_xDWSZRLGKAE3A/edit?usp=sharing"
 
-def save_to_google_sheet(name, gender, age_group, model, ctrlpts, weights, alpha_value, adjective):
+def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, weight_ratios, alpha_value, adjective):
     try:
         if client is None:
             raise RuntimeError("Google Sheetsへの接続設定がありません (Streamlit Secretsを確認してください)")
 
         spreadsheet = client.open_by_url(SPREADSHEET_URL)
-        worksheet = spreadsheet.sheet1
+        
+        main_worksheet = spreadsheet.worksheet("全体")
+        try:
+            model_worksheet = spreadsheet.worksheet(model)
+        except gspread.exceptions.WorksheetNotFound:
+            model_worksheet = None
 
         jst_time = datetime.utcnow() + timedelta(hours=9)
         timestamp = jst_time.strftime("%Y-%m-%d %H:%M:%S")
 
         ctrlpts_str = json.dumps(ctrlpts, ensure_ascii=False)
-        weights_str = json.dumps(weights, ensure_ascii=False)
+        raw_weights_str = json.dumps(raw_weights, ensure_ascii=False)
+        ratios_str = json.dumps(weight_ratios, ensure_ascii=False)
 
-        row = [timestamp, name, gender, age_group, model, ctrlpts_str, weights_str, alpha_value, adjective]
+        # ご希望のA列〜J列の並び順に変更
+        row = [adjective, name, gender, age_group, model, ctrlpts_str, raw_weights_str, ratios_str, alpha_value, timestamp]
         row = [str(v).encode("utf-8", "ignore").decode("utf-8") for v in row]
 
-        worksheet.append_row(row, value_input_option="USER_ENTERED")
+        # 印象の言葉の並び順（優先順位）を定義
+        adjectives_order = [
+            "かわいい(cute)", 
+            "かっこいい(cool)", 
+            "頑丈な(sturdy)", 
+            "速い(fast)", 
+            "高級な(luxury)", 
+            "親しみのある(familiar)"
+        ]
+
+        # グループごとに整理して行を挿入するローカル関数
+        def insert_sorted(sheet, row_data, adj):
+            col_a = sheet.col_values(1) # A列（印象の言葉）のデータを全取得
+            
+            # シートにヘッダーしかない、または空の場合は2行目にそのまま追加
+            if len(col_a) <= 1:
+                sheet.insert_row(row_data, index=2, value_input_option="USER_ENTERED")
+                return
+
+            # 今回追加する言葉の優先度番号を取得
+            new_pri = adjectives_order.index(adj) if adj in adjectives_order else 999
+            
+            insert_idx = 2 # デフォルトの挿入位置（2行目）
+            
+            # シートの下の行から上に向かって検索
+            for i in range(len(col_a) - 1, 0, -1):
+                val = col_a[i]
+                existing_pri = adjectives_order.index(val) if val in adjectives_order else -1
+                
+                # 同じ言葉、または自分より優先度が高い（上にあるべき）言葉を見つけたら
+                if existing_pri <= new_pri and existing_pri != -1:
+                    # その言葉の「次の行」を挿入位置に決定してループを抜ける
+                    insert_idx = i + 2 
+                    break
+            
+            # 決定した行にデータを挿入（それ以下の行は自動で1段ずつ下へずれる）
+            sheet.insert_row(row_data, index=insert_idx, value_input_option="USER_ENTERED")
+
+        # 「全体」シートへの書き込み
+        insert_sorted(main_worksheet, row, adjective)
+        
+        # 「各車種」シートへの書き込み
+        if model_worksheet:
+            insert_sorted(model_worksheet, row, adjective)
+            
         return True, None
     except Exception as e:
         return False, str(e)
@@ -408,7 +459,8 @@ if st.button("保存する(save)"):
             age_group,
             selected_model,
             new_ctrlpts,
-            weight_ratios, # 絶対値ではなく「倍率のリスト」を渡す
+            new_weights,   
+            weight_ratios, 
             st.session_state.alpha,
             adjective
         )
