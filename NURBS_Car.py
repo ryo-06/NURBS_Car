@@ -383,7 +383,7 @@ def upload_image_to_drive(fig, filename):
     fig.savefig(buf, format='png', bbox_inches='tight')
     buf.seek(0)
     
-    FOLDER_ID = "1Tbigk3-JUd_QxIMqjEALO8LvWrHgognk?usp=drive_link"
+    FOLDER_ID = "1Tbigk3-JUd_QxIMqjEALO8LvWrHgognk"
     
     file_metadata = {
         'name': filename,
