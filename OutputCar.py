@@ -1,5 +1,6 @@
 import os
 import json
+import time  # サーバー混雑時の待機用に追加
 import gspread
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,14 +30,28 @@ def main():
     client = gspread.authorize(creds)
 
     print("スプレッドシートのデータを取得中...")
-    sheet = client.open_by_url(SPREADSHEET_URL).worksheet("全体")
-    records = sheet.get_all_values()
+    
+    # --- 503エラー対策のためのリトライ処理（最大3回） ---
+    max_retries = 3
+    records = []
+    for attempt in range(max_retries):
+        try:
+            sheet = client.open_by_url(SPREADSHEET_URL).worksheet("全体")
+            records = sheet.get_all_values()
+            break  # 成功したらループを抜ける
+        except gspread.exceptions.APIError as e:
+            if "503" in str(e) and attempt < max_retries - 1:
+                print(f"Googleサーバーが混雑しています。5秒後に再試行します...（{attempt + 1}/{max_retries}回目）")
+                time.sleep(5)
+            else:
+                # 3回失敗した、または503以外のエラーの場合はそのままエラーを出す
+                raise e
 
     # ヘッダー行をスキップ（1行目がヘッダーであると仮定）
     if len(records) > 0 and "かっこいい" not in records[0] and "かわいい" not in records[0]:
         records = records[1:]
 
-    print(f"合計 {len(records)} 件のデータを処理します。")
+    print(f"合計 {len(records)} 件のデータを確認します。")
 
     # 画像の出力先ルートフォルダ
     output_base_dir = "output_car_images"
@@ -52,7 +67,7 @@ def main():
             ctrlpts = json.loads(row[5])
             weights = json.loads(row[6])
             
-            # タイムスタンプをファイル名に使用できるように「:」を「-」に置換
+            # タイムスタンプをファイル名に使用できるように「:」を「-」に置換、空白を「_」に置換
             timestamp = row[9].replace(":", "-").replace(" ", "_")
             
             # --- 保存先ディレクトリの作成 (車種 > 言葉) ---
@@ -62,6 +77,11 @@ def main():
             
             file_name = f"{timestamp}_{name}.png"
             file_path = os.path.join(save_dir, file_name)
+
+            # --- 【スキップ機能】すでに画像が存在する場合は処理を飛ばす ---
+            if os.path.exists(file_path):
+                print(f"[{i+1:03d}/{len(records):03d}] スキップ済 (作成済み): {file_name}")
+                continue
 
             # --- NURBS曲線の生成 ---
             curve = NURBS.Curve()
@@ -90,18 +110,18 @@ def main():
             ax.set_xlim(-3, 15)
             ax.set_ylim(-3, 8)
             ax.set_aspect('equal')
-            ax.axis('off') # 枠線や目盛りを消す場合は有効化
+            ax.axis('off') # 枠線や目盛りを消す
 
             # 画像として保存し、メモリ解放のために閉じる
             plt.savefig(file_path, bbox_inches='tight', pad_inches=0.1)
             plt.close(fig)
 
-            print(f"[{i+1}/{len(records)}] 保存完了: {file_path}")
+            print(f"[{i+1:03d}/{len(records):03d}] 新規保存完了: {file_path}")
 
         except Exception as e:
             print(f"行 {i+1} の処理中にエラーが発生しました（データスキップ）: {e}")
 
-    print("すべての画像の出力が完了しました！")
+    print("すべての処理が完了しました！")
 
 if __name__ == "__main__":
     main()
