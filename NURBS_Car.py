@@ -107,7 +107,7 @@ with col_info3:
 
 st.markdown("### これから作る自動車の印象を決めてください(Please Decide the impression of the car you are going to make.)")
 adjective = st.selectbox(
-    "車を一言で表すと？(How would you describe the car in one word?)",
+    "車を一言で表すと？(How low would you describe the car in one word?)",
     ["かわいい(cute)", "かっこいい(cool)", "頑丈な(sturdy)", "速い(fast)", "高級な(luxury)", "親しみのある(familiar)"]
 )
 
@@ -253,7 +253,7 @@ st.session_state.alpha = st.sidebar.slider(
 # 固定Y座標 (Ground Line)
 fixed_ground_y = model_data["ground_line"][2]
 
-new_ctrlpts, new_weights, weight_ratios = [], [], []
+new_ctrlpts, new_weights, weight_ratios, pos_diffs = [], [], [], []
 num_points = len(initial_ctrlpts)
 
 for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
@@ -308,7 +308,12 @@ for i, (pt, w) in enumerate(zip(initial_ctrlpts, initial_weights)):
     new_ctrlpts.append([float(x), float(y)])
     new_weights.append(float(ww))
     
-    # 倍率を計算してリストに追加
+    # 座標の位置の変化量（現在の値 - 初期値 の引き算）を計算してリストに追加
+    diff_x = round(float(x) - float(pt[0]), 2)
+    diff_y = round(float(y) - float(pt[1]), 2)
+    pos_diffs.append([diff_x, diff_y])
+
+    # 重みの倍率を計算してリストに追加
     ratio = round(float(ww) / float(w), 2)
     weight_ratios.append(ratio)
     
@@ -368,7 +373,7 @@ st.pyplot(fig)
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1-mgxO9tqejwKehnbLS5B2JhCocdHH_xDWSZRLGKAE3A/edit?usp=sharing"
 
-def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, weight_ratios, alpha_value, adjective):
+def save_to_google_sheet(name, gender, age_group, model, ctrlpts, pos_diffs, raw_weights, weight_ratios, alpha_value, adjective):
     try:
         if client is None:
             raise RuntimeError("Google Sheetsへの接続設定がありません (Streamlit Secretsを確認してください)")
@@ -384,11 +389,12 @@ def save_to_google_sheet(name, gender, age_group, model, ctrlpts, raw_weights, w
         timestamp = jst_time.strftime("%Y-%m-%d %H:%M:%S")
 
         ctrlpts_str = json.dumps(ctrlpts, ensure_ascii=False)
+        pos_diffs_str = json.dumps(pos_diffs, ensure_ascii=False)
         raw_weights_str = json.dumps(raw_weights, ensure_ascii=False)
         ratios_str = json.dumps(weight_ratios, ensure_ascii=False)
 
-        # 順番：言葉、名前、性別、年代、車種、座標、重み数値、重み倍率、透明度、時間
-        row = [adjective, name, gender, age_group, model, ctrlpts_str, raw_weights_str, ratios_str, alpha_value, timestamp]
+        # 順番：言葉、名前、性別、年代、車種、座標、座標変化量(追加)、重み数値、重み倍率、透明度、時間
+        row = [adjective, name, gender, age_group, model, ctrlpts_str, pos_diffs_str, raw_weights_str, ratios_str, alpha_value, timestamp]
         row = [str(v).encode("utf-8", "ignore").decode("utf-8") for v in row]
 
         adjectives_order = ["かわいい(cute)", "かっこいい(cool)", "頑丈な(sturdy)", "速い(fast)", "高級な(luxury)", "親しみのある(familiar)"]
@@ -433,9 +439,10 @@ if st.button("保存する(save)"):
                 age_group,
                 selected_model,
                 new_ctrlpts,
+                pos_diffs,       
                 new_weights,   
                 weight_ratios, 
-                1.0, # 透明度は1.0で強制保存
+                1.0, 
                 adjective
             )
             
